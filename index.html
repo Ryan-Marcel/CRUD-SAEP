@@ -10,13 +10,16 @@
     <div class="container">
         <h1>Gerenciador de Itens</h1>
 
-        <!-- Mensagens de feedback -->
         <div id="message" class="message" style="display: none;"></div>
 
-        <!-- Formulário para adicionar/editar -->
         <div class="form-group">
             <label for="itemName">Nome do Item:</label>
             <input type="text" id="itemName" placeholder="Digite o nome do item...">
+        </div>
+
+        <div class="form-group">
+            <label for="itemQuantidade">Quantidade:</label>
+            <input type="number" id="itemQuantidade" placeholder="Quantidade em estoque..." value="0" min="0">
         </div>
 
         <div class="form-group">
@@ -25,7 +28,6 @@
             <button class="btn btn-secondary" onclick="clearForm()">Limpar</button>
         </div>
 
-        <!-- Lista de itens -->
         <div class="items-list">
             <h2>Itens Cadastrados</h2>
             <div id="itemsContainer" class="loading">
@@ -35,52 +37,46 @@
     </div>
 
     <script>
-        // Variável para controlar se estamos editando
         let editingItemId = null;
 
-        // Função para mostrar mensagens
         function showMessage(text, type = 'success') {
             const messageDiv = document.getElementById('message');
             messageDiv.textContent = text;
             messageDiv.className = `message ${type}`;
             messageDiv.style.display = 'block';
-            
-            // Esconder a mensagem após 5 segundos
-            setTimeout(() => {
-                messageDiv.style.display = 'none';
-            }, 5000);
+            setTimeout(() => { messageDiv.style.display = 'none'; }, 5000);
         }
 
-        // Função para limpar o formulário
         function clearForm() {
             document.getElementById('itemName').value = '';
+            document.getElementById('itemQuantidade').value = '0';
             editingItemId = null;
             showMessage('Formulário limpo!', 'success');
         }
 
-        // FUNÇÃO: Adicionar item
         async function addItem() {
-            const nameInput = document.getElementById('itemName');
-            const name = nameInput.value.trim();
+            const name = document.getElementById('itemName').value.trim();
+            const quantidadeInput = document.getElementById('itemQuantidade').value;
+            const quantidade = quantidadeInput ? parseInt(quantidadeInput) : 0;
 
             if (!name) {
                 showMessage('Por favor, digite um nome para o item!', 'error');
                 return;
             }
 
+            console.log('Enviando:', { name, quantidade }); // Debug
+
             try {
                 const response = await fetch('http://localhost:3005/items', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ name: name })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name, quantidade: quantidade })
                 });
 
                 if (response.ok) {
                     showMessage('Item adicionado com sucesso!');
-                    nameInput.value = '';
-                    loadItems(); // Atualiza a lista automaticamente
+                    clearForm();
+                    loadItems();
                 } else {
                     showMessage('Erro ao adicionar item!', 'error');
                 }
@@ -90,7 +86,6 @@
             }
         }
 
-        // FUNÇÃO: Carregar todos os itens
         async function loadItems() {
             const container = document.getElementById('itemsContainer');
             container.innerHTML = '<div class="loading">Carregando itens...</div>';
@@ -104,16 +99,18 @@
                     return;
                 }
 
-                // Construir HTML dos itens
                 let html = '';
                 items.forEach(item => {
+                    const estoqueClass = item.quantidade < 10 ? 'estoque-baixo' : '';
+                    const estoqueStatus = item.quantidade < 10 ? '⚠️ ESTOQUE BAIXO' : '✓ Estoque OK';
                     html += `
-                        <div class="item-card">
+                        <div class="item-card ${estoqueClass}">
                             <div class="item-info">
-                                <strong>ID: ${item.id}</strong> - ${item.name}
+                                <div><strong>ID: ${item.id}</strong> - ${item.name}</div>
+                                <div class="quantidade">Quantidade: <strong>${item.quantidade}</strong> unidades ${item.quantidade < 10 ? '- ' + estoqueStatus : ''}</div>
                             </div>
                             <div class="item-actions">
-                                <button class="btn btn-secondary" onclick="editItem(${item.id}, '${item.name.replace(/'/g, "\\'")}')">
+                                <button class="btn btn-secondary" onclick="editItem(${item.id}, '${item.name.replace(/'/g, "\\'")}', ${item.quantidade})">
                                     Editar
                                 </button>
                                 <button class="btn btn-danger" onclick="deleteItem(${item.id})">
@@ -134,19 +131,17 @@
             }
         }
 
-        // FUNÇÃO: Editar item (preenche o formulário)
-        function editItem(id, name) {
+        function editItem(id, name, quantidade) {
             document.getElementById('itemName').value = name;
+            document.getElementById('itemQuantidade').value = quantidade;
             editingItemId = id;
             showMessage(`Editando item ID: ${id} - Clique em "Atualizar Item" para salvar.`);
             
-            // Muda o botão para "Atualizar"
             const addButton = document.querySelector('.btn-primary');
             addButton.textContent = 'Atualizar Item';
             addButton.onclick = updateItem;
         }
 
-        // FUNÇÃO: Atualizar item
         async function updateItem() {
             if (!editingItemId) {
                 showMessage('Nenhum item selecionado para edição!', 'error');
@@ -154,18 +149,21 @@
             }
 
             const name = document.getElementById('itemName').value.trim();
+            const quantidadeInput = document.getElementById('itemQuantidade').value;
+            const quantidade = quantidadeInput ? parseInt(quantidadeInput) : 0;
+            
             if (!name) {
                 showMessage('Por favor, digite um nome para o item!', 'error');
                 return;
             }
 
+            console.log('Atualizando:', { name, quantidade }); // Debug
+
             try {
                 const response = await fetch(`http://localhost:3005/items/${editingItemId}`, {
                     method: 'PUT',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ name: name })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name, quantidade: quantidade })
                 });
 
                 if (response.ok) {
@@ -173,7 +171,6 @@
                     clearForm();
                     loadItems();
                     
-                    // Volta o botão ao normal
                     const addButton = document.querySelector('.btn-primary');
                     addButton.textContent = 'Adicionar Item';
                     addButton.onclick = addItem;
@@ -186,11 +183,8 @@
             }
         }
 
-        // FUNÇÃO: Excluir item
         async function deleteItem(id) {
-            if (!confirm('Tem certeza que deseja excluir este item?')) {
-                return;
-            }
+            if (!confirm('Tem certeza que deseja excluir este item?')) return;
 
             try {
                 const response = await fetch(`http://localhost:3005/items/${id}`, {
@@ -199,7 +193,7 @@
 
                 if (response.ok) {
                     showMessage('Item excluído com sucesso!');
-                    loadItems(); // Atualiza a lista
+                    loadItems();
                 } else {
                     showMessage('❌ Erro ao excluir item!', 'error');
                 }
@@ -209,7 +203,6 @@
             }
         }
 
-        // Carregar itens quando a página abre
         document.addEventListener('DOMContentLoaded', function() {
             loadItems();
         });
